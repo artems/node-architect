@@ -1,0 +1,8 @@
+{
+  "name": "architect",
+  "version": "0.0.4",
+  "description": "A plugin system",
+  "main": "application.js",
+  "author": "Artem Semenov <tema.semenov@gmail.com>",
+  "license": "MIT"
+}
