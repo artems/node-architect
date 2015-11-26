@@ -34,20 +34,18 @@ export default class Application {
   }
 
   require(modulePath) {
-
-    const realPath = modulePath[0] === '/' ?
-      modulePath :
-      path.join(this.basePath, modulePath);
+    const realPath = modulePath[0] === '/'
+        ? modulePath
+        : path.join(this.basePath, modulePath);
 
     return require(realPath);
-
   }
 
   requireDefault(modulePath) {
     let module = this.require(modulePath);
 
     if (module.__esModule) {
-      module = module.default;
+      module = module['default'];
     }
 
     return module;
@@ -96,7 +94,8 @@ export default class Application {
         reject(new Error('Timeout of shutdown exceeded'));
       }, this.shutdownTimeout);
 
-      Promise.all(promise)
+      Promise
+        .all(promise)
         .then(() => {
           clearTimeout(shutdownTimer);
           resolve();
@@ -106,8 +105,8 @@ export default class Application {
 
   /**
    * Launching a new round.
-   * Each round method checks whitch of services can be started.
-   * Trigger deadlock exception when there are no awaiting services and no one of services started in the last round.
+   * Each round method checks which of services can be started.
+   * Throw deadlock exception when there are no awaiting services and no one of services started in the last round.
    *
    * @private
    */
@@ -184,7 +183,6 @@ export default class Application {
   }
 
   checkConstraints() {
-
     this.checkNameConstraints(this.awaiting);
 
     this.awaiting.forEach(name => {
@@ -193,11 +191,9 @@ export default class Application {
 
       this.checkNameConstraints(dependencies);
     });
-
   }
 
   checkNameConstraints(dependencies) {
-
     dependencies.forEach(name => {
       if (name === 'require') {
         throw new Error('Service name `require` is forbidden');
@@ -207,7 +203,6 @@ export default class Application {
         throw new Error('Service name `requireDefault` is forbidden');
       }
     });
-
   }
 
   getDependencyNames(service) {
@@ -215,9 +210,9 @@ export default class Application {
       return [];
     }
 
-    return Array.isArray(service.dependencies) ?
-      service.dependencies :
-      this.constructor.values(service.dependencies);
+    return Array.isArray(service.dependencies)
+        ? service.dependencies
+        : this.constructor.values(service.dependencies);
   }
 
   obtainModule(name, service) {
@@ -283,8 +278,12 @@ export default class Application {
         ));
       }, this.startupTimeout);
 
-      serviceModule(options, imports)
-        .then(result => {
+      let module = serviceModule(options, imports);
+      if (!(module instanceof Promise)) {
+          module = Promise.resolve(module);
+      }
+
+      module.then(result => {
           delete this.starting[name];
           clearTimeout(startupTimer);
 

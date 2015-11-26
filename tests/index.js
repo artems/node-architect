@@ -1,10 +1,9 @@
 'use strict';
 
 import path from 'path';
-import Application from '../../application';
+import Application from '../src/architect';
 
-// TODO when all ignored
-describe('modules/application', function () {
+describe('architect', function () {
 
   let app, config;
 
@@ -345,7 +344,7 @@ describe('modules/application', function () {
 
       app
         .execute()
-        .then(::app.shutdown)
+        .then(app.shutdown.bind(app))
         .then(() => {
           assert.deepEqual(order, [
             'start serviceB',
@@ -397,7 +396,7 @@ describe('modules/application', function () {
       app = new Application(config);
       app
         .execute()
-        .then(::app.shutdown)
+        .then(app.shutdown.bind(app))
         .then(done)
         .catch(e => {
           assert.instanceOf(e, Error);
@@ -482,7 +481,7 @@ describe('modules/application', function () {
         });
     });
 
-    it('`require` is is forbidden alias', function () {
+    it('`requireDefault` is is forbidden alias', function () {
       config = {
         services: {
           serviceA: {
