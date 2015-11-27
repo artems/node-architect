@@ -2,7 +2,7 @@
 
 import path from 'path';
 
-export default class Application {
+export default class Architect {
 
   static values(object) {
     return Object.keys(object).map(key => object[key]);
@@ -85,15 +85,18 @@ export default class Application {
     }
 
     const promise = [];
-    const complete = function (error) {
-      promise.push(
-        error ? Promise.resolve() : Promise.reject(error)
-      );
+
+    const mkPromise = function (teardown) {
+      return new Promise((resolve, reject) => {
+        teardown(error => {
+          error ? reject(error) : resolve();
+        });
+      });
     };
 
     for (const name in this.teardown) {
       if (this.teardown[name].length === 1) {
-        this.teardown[name](complete);
+        promise.push(mkPromise(this.teardown[name]));
       } else {
         promise.push(this.teardown[name]());
       }

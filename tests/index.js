@@ -348,6 +348,74 @@ describe('architect', function () {
 
   describe('#shutdown', function () {
 
+    it('should support async shutdown (promise)', function (done) {
+      let called = false;
+
+      config = {
+        services: {
+          serviceA: {
+            module: function () {
+              return {
+                name: 'moduleA',
+                shutdown: function () {
+                  return new Promise(resolve => {
+                    setTimeout(() => {
+                      called = true;
+                      resolve();
+                    }, 20);
+                  });
+                }
+              };
+            }
+          }
+        }
+      };
+
+      app = new Application(config);
+      app
+        .execute()
+        .then(app.shutdown.bind(app))
+        .then(() => {
+          assert(called);
+          done();
+        })
+        .catch(done);
+
+    });
+
+  it('should support async shutdown (callback)', function (done) {
+      let called = false;
+
+      config = {
+        services: {
+          serviceA: {
+            module: function () {
+              return {
+                name: 'moduleA',
+                shutdown: function (resolve) {
+                  setTimeout(() => {
+                    called = true;
+                    resolve();
+                  }, 20);
+                }
+              };
+            }
+          }
+        }
+      };
+
+      app = new Application(config);
+      app
+        .execute()
+        .then(app.shutdown.bind(app))
+        .then(() => {
+          assert(called);
+          done();
+        })
+        .catch(done);
+
+    });
+
     it('should gracefuly shutdown services', function (done) {
       const order = [];
 
