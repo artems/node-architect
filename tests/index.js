@@ -15,14 +15,14 @@ describe('architect', function () {
         serviceA: {
           module: function () {
             order.push('serviceA');
-            return Promise.resolve({ service: 'moduleA' });
+            return 'moduleA';
           },
           dependencies: ['serviceB']
         },
         serviceB: {
           module: function () {
             order.push('serviceB');
-            return Promise.resolve({ service: 'moduleB' });
+            return 'moduleB';
           }
         }
       }
@@ -32,7 +32,7 @@ describe('architect', function () {
 
     app
       .execute()
-      .then(function (resolved) {
+      .then(resolved => {
         assert.deepEqual(order, ['serviceB', 'serviceA']);
         assert.deepEqual(resolved, { serviceA: 'moduleA', serviceB: 'moduleB' });
         done();
@@ -41,34 +41,28 @@ describe('architect', function () {
 
   });
 
-  it('should properly resolve async dependencies', function (done) {
+  it('should properly resolve async dependencies (callback)', function (done) {
     config = {
       services: {
         serviceA: {
-          module: function () {
-            return new Promise(resolve => {
-              setTimeout(function () { resolve({ service: 'moduleA' }); }, 10);
-            });
+          module: function (o, i, resolve) {
+            setTimeout(() => { resolve('moduleA'); }, 10);
           },
           dependencies: ['serviceB', 'serviceC', 'serviceD']
         },
         serviceB: {
-          module: function () {
-            return new Promise(resolve => {
-              setTimeout(function () { resolve({ service: 'moduleB' }); }, 15);
-            });
+          module: function (o, i, resolve) {
+            setTimeout(() => { resolve('moduleB'); }, 15);
           }
         },
         serviceC: {
-          module: function () {
-            return new Promise(resolve => {
-              setTimeout(function () { resolve({ service: 'moduleC' }); }, 20);
-            });
+          module: function (o, i, resolve) {
+            setTimeout(() => { resolve('moduleC'); }, 20);
           }
         },
         serviceD: {
           module: function () {
-            return Promise.resolve({ service: 'moduleD' });
+            return 'moduleD';
           }
         }
       }
@@ -91,23 +85,34 @@ describe('architect', function () {
 
   });
 
-  it('should pass options and imports to service', function (done) {
+  it('should properly resolve async dependencies (promise)', function (done) {
     config = {
       services: {
         serviceA: {
-          module: function (o, i) {
-            assert.equal(o.A, 'A');
-            assert.equal(o.B, 'B');
-            assert.equal(i.serviceB, 'moduleB');
-
-            return Promise.resolve({ service: 'moduleA' });
+          module: function () {
+            return new Promise(resolve => {
+              setTimeout(() => { resolve('moduleA'); }, 10);
+            });
           },
-          options: { A: 'A', B: 'B' },
-          dependencies: ['serviceB']
+          dependencies: ['serviceB', 'serviceC', 'serviceD']
         },
         serviceB: {
           module: function () {
-            return Promise.resolve({ service: 'moduleB' });
+            return new Promise(resolve => {
+              setTimeout(() => { resolve('moduleB'); }, 15);
+            });
+          }
+        },
+        serviceC: {
+          module: function () {
+            return new Promise(resolve => {
+              setTimeout(() => { resolve('moduleC'); }, 20);
+            });
+          }
+        },
+        serviceD: {
+          module: function () {
+            return 'moduleD';
           }
         }
       }
@@ -117,7 +122,47 @@ describe('architect', function () {
 
     app
       .execute()
-      .then(function () { done(); });
+      .then(resolved => {
+        assert.deepEqual(resolved, {
+          serviceA: 'moduleA',
+          serviceB: 'moduleB',
+          serviceC: 'moduleC',
+          serviceD: 'moduleD'
+        });
+        done();
+      })
+      .catch(done);
+
+  });
+
+
+  it('should pass options and imports to service', function (done) {
+    config = {
+      services: {
+        serviceA: {
+          module: function (o, i) {
+            assert.equal(o.A, 'A');
+            assert.equal(o.B, 'B');
+            assert.equal(i.serviceB, 'moduleB');
+
+            return 'moduleA';
+          },
+          options: { A: 'A', B: 'B' },
+          dependencies: ['serviceB']
+        },
+        serviceB: {
+          module: function () {
+            return 'moduleB';
+          }
+        }
+      }
+    };
+
+    app = new Application(config);
+
+    app
+      .execute()
+      .then(() => done());
 
   });
 
@@ -126,19 +171,19 @@ describe('architect', function () {
       services: {
         serviceA: {
           module: function () {
-            return Promise.resolve({ service: 'moduleA' });
+            return 'moduleA';
           },
           dependencies: ['serviceB']
         },
         serviceB: {
           module: function () {
-            return Promise.resolve({ service: 'moduleB' });
+            return 'moduleB';
           },
           dependencies: ['serviceC']
         },
         serviceC: {
           module: function () {
-            return Promise.resolve({ service: 'moduleC' });
+            return 'moduleC';
           },
           dependencies: ['serviceA']
         }
@@ -149,7 +194,7 @@ describe('architect', function () {
 
     app
       .execute()
-      .catch(function (e) {
+      .catch(e => {
         assert.instanceOf(e, Error);
         assert.match(e.message, /circular dependency detected/i);
         done();
@@ -162,7 +207,7 @@ describe('architect', function () {
       services: {
         serviceA: {
           module: function () {
-            return Promise.resolve({ service: 'moduleA' });
+            return 'moduleA';
           },
           dependencies: ['serviceB']
         }
@@ -172,7 +217,7 @@ describe('architect', function () {
     app = new Application(config);
 
     app.execute()
-      .catch(function (e) {
+      .catch(e => {
         assert.instanceOf(e, Error);
         assert.match(e.message, /dependency .* not found/i);
         done();
@@ -187,14 +232,14 @@ describe('architect', function () {
         serviceA: {
           module: function () {
             order.push('serviceA');
-            return Promise.resolve({ service: 'moduleA' });
+            return 'moduleA';
           }
         },
         serviceB: {
           ignore: true,
           module: function () {
             order.push('serviceB');
-            return Promise.resolve({ service: 'moduleB' });
+            return 'moduleB';
           }
         }
       }
@@ -204,7 +249,7 @@ describe('architect', function () {
 
     app
       .execute()
-      .then(function (resolved) {
+      .then(resolved => {
         assert.deepEqual(order, ['serviceA']);
         assert.deepEqual(resolved, { serviceA: 'moduleA' });
         done();
@@ -262,12 +307,8 @@ describe('architect', function () {
       startup_timeout: 10,
       services: {
         serviceA: {
-          module: function () {
-            return new Promise(resolve => {
-              setTimeout(function () {
-                resolve({ service: 'serviceA' });
-              }, 20);
-            });
+          module: function (i, o, resolve) {
+            setTimeout(() => { resolve('serviceA'); }, 20);
           }
         }
       }
@@ -316,10 +357,9 @@ describe('architect', function () {
             module: function () {
               order.push('start serviceA');
               return Promise.resolve({
-                service: 'moduleA',
+                name: 'moduleA',
                 shutdown: function () {
                   order.push('shutdown serviceA');
-                  return Promise.resolve();
                 }
               });
             },
@@ -329,10 +369,9 @@ describe('architect', function () {
             module: function () {
               order.push('start serviceB');
               return Promise.resolve({
-                service: 'moduleB',
+                name: 'moduleB',
                 shutdown: function () {
                   order.push('shutdown serviceB');
-                  return Promise.resolve();
                 }
               });
             }
@@ -376,10 +415,10 @@ describe('architect', function () {
           serviceA: {
             module: function () {
               return Promise.resolve({
-                service: 'moduleA',
+                name: 'moduleA',
                 shutdown: function () {
                   return new Promise(resolve => {
-                    setTimeout(function () { resolve({ service: 'serviceA' }); }, 20);
+                    setTimeout(() => { resolve('serviceA'); }, 20);
                   });
                 }
               });
@@ -387,7 +426,7 @@ describe('architect', function () {
           },
           serviceB: {
             module: function () {
-              return Promise.resolve({ service: 'serviceB' });
+              return 'serviceB';
             }
           }
         }
@@ -397,7 +436,6 @@ describe('architect', function () {
       app
         .execute()
         .then(app.shutdown.bind(app))
-        .then(done)
         .catch(e => {
           assert.instanceOf(e, Error);
           assert.match(e.message, /timeout/i);
@@ -414,7 +452,7 @@ describe('architect', function () {
         services: {
           require: {
             module: function () {
-              return Promise.resolve({ service: 'service' });
+              return 'service';
             }
           }
         }
@@ -436,7 +474,7 @@ describe('architect', function () {
         services: {
           requireDefault: {
             module: function () {
-              return Promise.resolve({ service: 'service' });
+              return 'service';
             }
           }
         }
@@ -458,12 +496,12 @@ describe('architect', function () {
         services: {
           serviceA: {
             module: function () {
-              return Promise.resolve({ service: 'serviceA' });
+              return 'serviceA';
             }
           },
           serviceB: {
             module: function () {
-              return Promise.resolve({ service: 'serviceB' });
+              return 'serviceB';
             },
             dependencies: { require: 'serviceA' }
           }
@@ -486,12 +524,12 @@ describe('architect', function () {
         services: {
           serviceA: {
             module: function () {
-              return Promise.resolve({ service: 'serviceA' });
+              return 'serviceA';
             }
           },
           serviceB: {
             module: function () {
-              return Promise.resolve({ service: 'serviceB' });
+              return 'serviceB';
             },
             dependencies: { requireDefault: 'serviceA' }
           }

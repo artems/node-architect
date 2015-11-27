@@ -35,8 +35,8 @@ export default class Application {
 
   require(modulePath) {
     const realPath = modulePath[0] === '/'
-        ? modulePath
-        : path.join(this.basePath, modulePath);
+      ? modulePath
+      : path.join(this.basePath, modulePath);
 
     return require(realPath);
   }
@@ -85,8 +85,18 @@ export default class Application {
     }
 
     const promise = [];
+    const complete = function (error) {
+      promise.push(
+        error ? Promise.resolve() : Promise.reject(error)
+      );
+    };
+
     for (const name in this.teardown) {
-      promise.push(this.teardown[name]());
+      if (this.teardown[name].length === 1) {
+        this.teardown[name](complete);
+      } else {
+        promise.push(this.teardown[name]());
+      }
     }
 
     return new Promise((resolve, reject) => {
@@ -278,25 +288,39 @@ export default class Application {
         ));
       }, this.startupTimeout);
 
-      let module = serviceModule(options, imports);
-      if (!(module instanceof Promise)) {
-          module = Promise.resolve(module);
+      if (serviceModule.length === 3) {
+          // callback version
+          serviceModule(
+              options,
+              imports,
+              this.register.bind(this, name, startupTimer)
+          );
+      } else {
+          // "simple return" version
+          const module = serviceModule(options, imports);
+          this.register(name, startupTimer, module);
       }
-
-      module.then(result => {
-          delete this.starting[name];
-          clearTimeout(startupTimer);
-
-          this.resolved[name] = result.service;
-          this.teardown[name] = result.shutdown ||
-            function () { return Promise.resolve(); };
-          this.nextRound();
-        });
     } catch (error) {
       this.promise.reject(new Error(
         `Error occurs during module "${name}" startup.\n` + error.stack
       ));
     }
+  }
+
+  register(name, timer, module) {
+      // the module may be "promise" or "plain object"
+      Promise.resolve()
+        .then(() => module)
+        .then(service => {
+          clearTimeout(timer);
+          delete this.starting[name];
+
+          this.resolved[name] = service;
+          this.teardown[name] = service.shutdown ||
+            function () { return undefined; };
+
+          this.nextRound();
+        });
   }
 
 }
