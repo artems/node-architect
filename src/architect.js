@@ -312,8 +312,7 @@ export default class Architect {
 
   register(name, timer, module) {
       // the module may be "promise" or "plain object"
-      Promise.resolve()
-        .then(() => module)
+      Promise.resolve(module)
         .then(service => {
           clearTimeout(timer);
           delete this.starting[name];
@@ -323,7 +322,12 @@ export default class Architect {
             function () { return undefined; };
 
           this.nextRound();
-        });
+        })
+        .catch(error => {
+          this.promise.reject(new Error(
+            `Error occurs during module "${name}" startup.\n` + error.stack
+          ));
+        })
   }
 
 }
