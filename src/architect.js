@@ -112,6 +112,10 @@ export default class Architect {
         .then(() => {
           clearTimeout(shutdownTimer);
           resolve();
+        })
+        .catch(error => {
+          clearTimeout(shutdownTimer);
+          reject(error);
         });
     });
   }
