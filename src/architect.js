@@ -321,7 +321,7 @@ export default class Architect {
           clearTimeout(timer);
           delete this.starting[name];
 
-          this.resolved[name] = service;
+          this.resolved[name] = service || {};
           this.teardown[name] = service.shutdown ||
             function () { return undefined; };
 
