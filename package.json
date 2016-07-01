@@ -1,7 +1,7 @@
 {
   "name": "node-architect",
   "author": "Artem Semenov <tema.semenov@gmail.com>",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "license": "MIT",
   "description": "A Simple yet powerful plugin system for node applications",
   "repository": {

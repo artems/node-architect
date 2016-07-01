@@ -1,5 +1,3 @@
-'use strict';
-
 import path from 'path';
 
 export default class Architect {
@@ -44,7 +42,7 @@ export default class Architect {
   requireDefault(modulePath) {
     let module = this.require(modulePath);
 
-    if (module.__esModule) {
+    if (module['default']) {
       module = module['default'];
     }
 
@@ -88,9 +86,7 @@ export default class Architect {
 
     const mkPromise = function (teardown) {
       return new Promise((resolve, reject) => {
-        teardown(error => {
-          error ? reject(error) : resolve();
-        });
+        teardown(error => error ? reject(error) : resolve());
       });
     };
 
@@ -123,7 +119,8 @@ export default class Architect {
   /**
    * Launching a new round.
    * Each round method checks which of services can be started.
-   * Throw deadlock exception when there are no awaiting services and no one of services started in the last round.
+   * Throw deadlock exception when there are no starting services
+   * and no one of services started in the last round.
    *
    * @private
    */
@@ -141,8 +138,8 @@ export default class Architect {
       }
 
       if (this.checkDependencies(name, service)) {
-        startedInThisRound++;
         this.startService(name, service);
+        startedInThisRound++;
       }
     }
 
@@ -160,7 +157,7 @@ export default class Architect {
       if (Object.keys(this.starting).length === 0) {
         this.promise.reject(new Error(
           'Circular dependency detected while resolving ' +
-            this.awaiting.join(', ')
+          this.awaiting.join(', ')
         ));
       }
     }
@@ -168,7 +165,7 @@ export default class Architect {
 
   /**
    * Check dependencies of a given service.
-   * Return `true` when all dependencies are resolved and `false` otherwise.
+   * Returns `true` when all dependencies are resolved and `false` otherwise.
    *
    * @private
    *
@@ -303,7 +300,7 @@ export default class Architect {
               this.register.bind(this, name, startupTimer)
           );
       } else {
-          // "simple return" version
+          // "returns promise" version
           const module = serviceModule(options, imports);
           this.register(name, startupTimer, module);
       }
@@ -322,7 +319,7 @@ export default class Architect {
           delete this.starting[name];
 
           this.resolved[name] = service || {};
-          this.teardown[name] = service.shutdown ||
+          this.teardown[name] = (service && service.shutdown) ||
             function () { return undefined; };
 
           this.nextRound();
