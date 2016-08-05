@@ -1,7 +1,7 @@
 {
   "name": "node-architect",
   "author": "Artem Semenov <tema.semenov@gmail.com>",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "license": "MIT",
   "description": "A Simple yet powerful plugin system for node applications",
   "repository": {
@@ -15,14 +15,14 @@
     "prepublish": "npm run compile"
   },
   "devDependencies": {
-    "babel": "^6.1.0",
-    "babel-cli": "^6.1.0",
-    "babel-core": "^6.1.0",
-    "babel-plugin-syntax-function-bind": "^6.1.0",
-    "babel-preset-es2015": "^6.1.0",
-    "babel-runtime": "^6.2.0",
-    "chai": "^3.4.0",
-    "mocha": "^2.3.4",
-    "sinon": "^1.17.2"
+    "babel-cli": "^6.14.0",
+    "babel-core": "^6.14.0",
+    "babel-preset-es2015": "^6.14.0",
+    "chai": "^3.5.0",
+    "mocha": "^3.0.0",
+    "sinon": "^1.17.5"
+  },
+  "dependencies": {
+    "object-set": "^1.0.1"
   }
 }

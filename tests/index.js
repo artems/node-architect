@@ -1,7 +1,5 @@
-'use strict';
-
-import path from 'path';
-import Application from '../src/architect';
+const path = require('path');
+const Architect = require('../src/architect');
 
 describe('architect', function () {
 
@@ -28,64 +26,19 @@ describe('architect', function () {
       }
     };
 
-    app = new Application(config);
+    app = new Architect(config);
 
     app
       .execute()
       .then(resolved => {
         assert.deepEqual(order, ['serviceB', 'serviceA']);
         assert.deepEqual(resolved, { serviceA: 'moduleA', serviceB: 'moduleB' });
-        done();
       })
-      .catch(done);
+      .then(done, done);
 
   });
 
-  it('should properly resolve async dependencies (callback)', function (done) {
-    config = {
-      services: {
-        serviceA: {
-          module: function (o, i, resolve) {
-            setTimeout(() => { resolve('moduleA'); }, 10);
-          },
-          dependencies: ['serviceB', 'serviceC', 'serviceD']
-        },
-        serviceB: {
-          module: function (o, i, resolve) {
-            setTimeout(() => { resolve('moduleB'); }, 15);
-          }
-        },
-        serviceC: {
-          module: function (o, i, resolve) {
-            setTimeout(() => { resolve('moduleC'); }, 20);
-          }
-        },
-        serviceD: {
-          module: function () {
-            return 'moduleD';
-          }
-        }
-      }
-    };
-
-    app = new Application(config);
-
-    app
-      .execute()
-      .then(resolved => {
-        assert.deepEqual(resolved, {
-          serviceA: 'moduleA',
-          serviceB: 'moduleB',
-          serviceC: 'moduleC',
-          serviceD: 'moduleD'
-        });
-        done();
-      })
-      .catch(done);
-
-  });
-
-  it('should properly resolve async dependencies (promise)', function (done) {
+  it('should properly resolve async dependencies', function (done) {
     config = {
       services: {
         serviceA: {
@@ -118,7 +71,7 @@ describe('architect', function () {
       }
     };
 
-    app = new Application(config);
+    app = new Architect(config);
 
     app
       .execute()
@@ -129,12 +82,10 @@ describe('architect', function () {
           serviceC: 'moduleC',
           serviceD: 'moduleD'
         });
-        done();
       })
-      .catch(done);
+      .then(done, done);
 
   });
-
 
   it('should pass options and imports to service', function (done) {
     config = {
@@ -158,11 +109,12 @@ describe('architect', function () {
       }
     };
 
-    app = new Application(config);
+    app = new Architect(config);
 
     app
       .execute()
-      .then(() => done());
+      .then(() => {})
+      .then(done, done);
 
   });
 
@@ -190,15 +142,16 @@ describe('architect', function () {
       }
     };
 
-    app = new Application(config);
+    app = new Architect(config);
 
     app
       .execute()
+      .then(() => assert.fail('should fail'))
       .catch(e => {
         assert.instanceOf(e, Error);
         assert.match(e.message, /circular dependency detected/i);
-        done();
-      });
+      })
+      .then(done, done);
 
   });
 
@@ -214,14 +167,15 @@ describe('architect', function () {
       }
     };
 
-    app = new Application(config);
+    app = new Architect(config);
 
     app.execute()
+      .then(() => assert.fail('should fail'))
       .catch(e => {
         assert.instanceOf(e, Error);
-        assert.match(e.message, /dependency .* not found/i);
-        done();
-      });
+        assert.match(e.message, /dependency.*not found/i);
+      })
+      .then(done, done);
   });
 
   it('should skip ignored services', function (done) {
@@ -245,16 +199,15 @@ describe('architect', function () {
       }
     };
 
-    app = new Application(config);
+    app = new Architect(config);
 
     app
       .execute()
       .then(resolved => {
         assert.deepEqual(order, ['serviceA']);
         assert.deepEqual(resolved, { serviceA: 'moduleA' });
-        done();
       })
-      .catch(done);
+      .then(done, done);
 
   });
 
@@ -267,15 +220,16 @@ describe('architect', function () {
       }
     };
 
-    app = new Application(config);
+    app = new Architect(config);
 
     app
       .execute()
+      .then(() => assert.fail('should fail'))
       .catch(e => {
         assert.instanceOf(e, Error);
         assert.match(e.message, /path\/not\/exists/i);
-        done();
-      });
+      })
+      .then(done, done);
 
   });
 
@@ -290,15 +244,16 @@ describe('architect', function () {
       }
     };
 
-    app = new Application(config);
+    app = new Architect(config);
 
     app
       .execute()
+      .then(() => assert.fail('should fail'))
       .catch(e => {
         assert.instanceOf(e, Error);
         assert.match(e.message, /Error in serviceA/i);
-        done();
-      });
+      })
+      .then(done, done);
 
   });
 
@@ -307,26 +262,28 @@ describe('architect', function () {
       startup_timeout: 10,
       services: {
         serviceA: {
-          module: function (i, o, resolve) {
-            setTimeout(() => { resolve('serviceA'); }, 20);
+          module: function (i, o) {
+            return new Promise(resolve => {
+              setTimeout(() => { resolve('serviceA'); }, 20);
+            });
           }
         }
       }
     };
 
-    app = new Application(config);
+    app = new Architect(config);
     app
       .execute()
-      .then(done)
+      .then(() => assert.fail('should fail'))
       .catch(e => {
         assert.instanceOf(e, Error);
         assert.match(e.message, /timeout/i);
-        done();
-      });
+      })
+      .then(done, done);
   });
 
   it('should not allow to execute an application twice', function () {
-    app = new Application();
+    app = new Architect();
 
     app.execute();
 
@@ -341,14 +298,14 @@ describe('architect', function () {
     it('should return array of object values without keys', function () {
       const test = { a: 'aa', b: 'bb' };
 
-      assert.deepEqual(Application.values(test), ['aa', 'bb']);
+      assert.deepEqual(Architect.values(test), ['aa', 'bb']);
     });
 
   });
 
   describe('#shutdown', function () {
 
-    it('should support async shutdown (promise)', function (done) {
+    it('should support async shutdown', function (done) {
       let called = false;
 
       config = {
@@ -371,48 +328,12 @@ describe('architect', function () {
         }
       };
 
-      app = new Application(config);
+      app = new Architect(config);
       app
         .execute()
         .then(app.shutdown.bind(app))
-        .then(() => {
-          assert(called);
-          done();
-        })
-        .catch(done);
-
-    });
-
-  it('should support async shutdown (callback)', function (done) {
-      let called = false;
-
-      config = {
-        services: {
-          serviceA: {
-            module: function () {
-              return {
-                name: 'moduleA',
-                shutdown: function (resolve) {
-                  setTimeout(() => {
-                    called = true;
-                    resolve();
-                  }, 20);
-                }
-              };
-            }
-          }
-        }
-      };
-
-      app = new Application(config);
-      app
-        .execute()
-        .then(app.shutdown.bind(app))
-        .then(() => {
-          assert(called);
-          done();
-        })
-        .catch(done);
+        .then(() => assert(called))
+        .then(done, done);
 
     });
 
@@ -447,7 +368,7 @@ describe('architect', function () {
         }
       };
 
-      app = new Application(config);
+      app = new Architect(config);
 
       app
         .execute()
@@ -459,17 +380,16 @@ describe('architect', function () {
             'shutdown serviceB',
             'shutdown serviceA'
           ]);
-          done();
         })
-        .catch(done);
+        .then(done, done);
     });
 
     it('should throw an error if app is not fully started', function () {
-      app = new Application({});
+      app = new Architect({});
 
       try {
         app.shutdown();
-        assert.fail('it should fail');
+        assert.fail('should fail');
       } catch (e) {
         assert.instanceOf(e, Error);
         assert.match(e.message, /started/i);
@@ -500,15 +420,16 @@ describe('architect', function () {
         }
       };
 
-      app = new Application(config);
+      app = new Architect(config);
       app
         .execute()
         .then(app.shutdown.bind(app))
+        .then(() => assert.fail('should fail'))
         .catch(e => {
           assert.instanceOf(e, Error);
           assert.match(e.message, /timeout/i);
-          done();
-        });
+        })
+        .then(done, done);
     });
 
   });
@@ -526,15 +447,16 @@ describe('architect', function () {
         }
       };
 
-      app = new Application(config);
+      app = new Architect(config);
 
       app
         .execute()
+        .then(() => assert.fail('should fail'))
         .catch(e => {
           assert.instanceOf(e, Error);
           assert.match(e.message, /is forbidden/i);
-          done();
-        });
+        })
+        .then(done, done);
     });
 
     it('`requireDefault` is is forbidden service name', function () {
@@ -548,15 +470,16 @@ describe('architect', function () {
         }
       };
 
-      app = new Application(config);
+      app = new Architect(config);
 
       app
         .execute()
+        .then(() => assert.fail('should fail'))
         .catch(e => {
           assert.instanceOf(e, Error);
           assert.match(e.message, /is forbidden/i);
-          done();
-        });
+        })
+        .then(done, done);
     });
 
     it('`require` is is forbidden alias', function () {
@@ -576,15 +499,16 @@ describe('architect', function () {
         }
       };
 
-      app = new Application(config);
+      app = new Architect(config);
 
       app
         .execute()
+        .then(() => assert.fail('should fail'))
         .catch(e => {
           assert.instanceOf(e, Error);
           assert.match(e.message, /is forbidden/i);
-          done();
-        });
+        })
+        .then(done, done);
     });
 
     it('`requireDefault` is is forbidden alias', function () {
@@ -604,35 +528,379 @@ describe('architect', function () {
         }
       };
 
-      app = new Application(config);
+      app = new Architect(config);
 
       app
         .execute()
+        .then(() => assert.fail('should fail'))
         .catch(e => {
           assert.instanceOf(e, Error);
           assert.match(e.message, /is forbidden/i);
-          done();
-        });
+        })
+        .then(done, done);
     });
 
     it('#require should join path with `basePath`', function () {
-      app = new Application({}, path.join(__dirname, 'mocks'));
+      app = new Architect({}, path.join(__dirname, 'mocks'));
 
       assert.deepEqual(app.require('./test'), './mocks/test.js');
     });
 
     it('#require should not join path with `basePath` if path starts with `/`', function () {
-      app = new Application({}, path.join(__dirname, 'mocks'));
+      app = new Architect({}, path.join(__dirname, 'mocks'));
       const absolutePath = path.join(__dirname, 'mocks', 'test.js');
 
       assert.deepEqual(app.require(absolutePath), './mocks/test.js');
     });
 
     it('#requireDefault should return default export', function () {
-      app = new Application({}, path.join(__dirname, 'mocks'));
+      app = new Architect({}, path.join(__dirname, 'mocks'));
 
       assert.deepEqual(app.requireDefault('./test'), './mocks/test.js');
       assert.deepEqual(app.requireDefault('./es6.js'), './mocks/es6.js');
+    });
+
+  });
+
+  describe('#addService', function () {
+
+    it('should add service to startup config', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              imports.__app__.addService('serviceB', {
+                module: function () {
+                  return 'moduleB';
+                }
+              });
+              return 'moduleA';
+            }
+          }
+        }
+      };
+
+      app = new Architect(config);
+
+      app
+        .execute()
+        .then(resolved => {
+          assert.deepEqual(resolved, { serviceA: 'moduleA', serviceB: 'moduleB' });
+        })
+        .then(done, done);
+
+    });
+
+    it('should throw an error if the service already exists', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              imports.__app__.addService('serviceB', {
+                module: function () {
+                  return 'moduleB';
+                }
+              });
+              return 'moduleA';
+            }
+          },
+          serviceB: {
+            module: function () { return 'moduleB' }
+          }
+        }
+      };
+
+      app = new Architect(config);
+      app
+        .execute()
+        .then(() => assert.fail('should fail'))
+        .catch(e => {
+          assert.instanceOf(e, Error);
+          assert.match(e.message, /exist/i);
+        })
+        .then(done, done);
+
+    });
+
+    it('should throw an error if the application fully started', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              setTimeout(function () {
+                try {
+                  imports.__app__.addService('serviceB', {
+                    module: function () {
+                      return 'moduleB';
+                    }
+                  });
+                  assert.fail('should fail');
+                } catch (e) {
+                  assert.match(e.message, /started/i);
+                  done();
+                }
+              }, 0);
+              return 'moduleA';
+            }
+          }
+        }
+      };
+
+      app = new Architect(config);
+      app.execute();
+
+    });
+
+  });
+
+  describe('#addDependency', function () {
+
+    it('should add dependency to service (array)', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              imports.__app__.addDependency('serviceB', 'serviceC');
+              return 'moduleA';
+            }
+          },
+          serviceB: {
+            module: function (options, imports) {
+              assert.propertyVal(imports, 'serviceA', 'moduleA');
+              assert.propertyVal(imports, 'serviceC', 'moduleC');
+              return 'moduleB';
+            },
+            dependencies: ['serviceA']
+          },
+          serviceC: { module: function () { return 'moduleC'; } }
+        }
+      };
+
+      app = new Architect(config);
+
+      app
+        .execute()
+        .then(() => {})
+        .then(done, done);
+
+    });
+
+    it('should add dependency to service (hash)', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              imports.__app__.addDependency('serviceB', 'serviceC');
+              return 'moduleA';
+            }
+          },
+          serviceB: {
+            module: function (options, imports) {
+              assert.propertyVal(imports, 'serviceA', 'moduleA');
+              assert.propertyVal(imports, 'serviceC', 'moduleC');
+              return 'moduleB';
+            },
+            dependencies: { 'serviceA': 'serviceA' }
+          },
+          serviceC: { module: function () { return 'moduleC'; } }
+        }
+      };
+
+      app = new Architect(config);
+
+      app
+        .execute()
+        .then(() => {})
+        .then(done, done);
+
+    });
+
+    it('should add dependency to service with alias', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              imports.__app__.addDependency('serviceB', 'serviceC', 'serviceD');
+              return 'moduleA';
+            }
+          },
+          serviceB: {
+            module: function (options, imports) {
+              assert.propertyVal(imports, 'serviceA', 'moduleA');
+              assert.propertyVal(imports, 'serviceD', 'moduleC');
+              return 'moduleB';
+            },
+            dependencies: { 'serviceA': 'serviceA' }
+          },
+          serviceC: { module: function () { return 'moduleC'; } }
+        }
+      };
+
+      app = new Architect(config);
+
+      app
+        .execute()
+        .then(() => {})
+        .then(done, done);
+
+    });
+
+    it('should throw an error if the service does not exist', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              imports.__app__.addDependency('serviceB', 'serviceC');
+              return 'moduleA';
+            }
+          }
+        }
+      };
+
+      app = new Architect(config);
+
+      app
+        .execute()
+        .then(() => assert.fail('should fail'))
+        .catch(e => {
+          assert.instanceOf(e, Error);
+          assert.match(e.message, /exist/i);
+        })
+        .then(done, done);
+
+    });
+
+    it('should throw an error if the service has been started', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              setTimeout(function () {
+                try {
+                  imports.__app__.addDependency('serviceB', 'serviceC');
+                  assert.fail('should fail');
+                } catch (e) {
+                  assert.match(e.message, /started/i);
+                  done();
+                }
+              }, 0);
+              return 'moduleA';
+            }
+          },
+          serviceB: {
+            module: function () { return 'moduleB'; },
+            dependencies: ['serviceA']
+          },
+          serviceC: { module: function () { return 'moduleC'; } }
+        }
+      };
+
+      app = new Architect(config);
+
+      app
+        .execute()
+        .then(() => {})
+        .then(done, done);
+
+    });
+
+    it('should throw an error if the service has no dependencies', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              imports.__app__.addDependency('serviceB', 'serviceC');
+              return 'moduleA';
+            }
+          },
+          serviceB: { module: function () { return 'moduleB'; } },
+          serviceC: { module: function () { return 'moduleC'; } }
+        }
+      };
+
+      app = new Architect(config);
+
+      app
+        .execute()
+        .then(() => assert.fail('should fail'))
+        .catch(e => {
+          assert.instanceOf(e, Error);
+          assert.match(e.message, /has no dependencies/i);
+        })
+        .then(done, done);
+
+    });
+
+  });
+
+  describe('#setOption', function () {
+
+    it('should add option for service', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              imports.__app__.setOption('serviceB', 'a.b.c.d', 'e');
+              return 'moduleA';
+            }
+          },
+          serviceB: {
+            module: function (options, imports) {
+              assert.equal(options.a.b.c.d, 'e');
+              return 'moduleB';
+            },
+            options: { a: { b: { c: { d: 'f' } } } },
+            dependencies: ['serviceA']
+          }
+        }
+      };
+
+      app = new Architect(config);
+
+      app
+        .execute()
+        .then(() => {})
+        .then(done, done);
+
+    });
+
+    it('should add option for service even when service has no options', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              imports.__app__.setOption('serviceB', 'a.b.c.d', 'e');
+              return 'moduleA';
+            }
+          },
+          serviceB: {
+            module: function (options, imports) {
+              assert.equal(options.a.b.c.d, 'e');
+              return 'moduleB';
+            },
+            dependencies: ['serviceA']
+          }
+        }
+      };
+
+      app = new Architect(config);
+
+      app
+        .execute()
+        .then(() => {})
+        .then(done, done);
+
     });
 
   });

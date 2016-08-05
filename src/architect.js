@@ -1,10 +1,20 @@
-import path from 'path';
+const path = require('path');
+const oset = require('object-set');
 
-export default class Architect {
+const DEFAULT_STARTUP_TIMEOUT = 5000;
+const DEFAULT_SHUTDOWN_TIMEOUT = 5000;
 
-  static values(object) {
-    return Object.keys(object).map(key => object[key]);
-  }
+function values(object) {
+  return Object.keys(object).map(key => object[key]);
+}
+
+function makeDictionary(array) {
+  const newObject = {};
+  array.forEach(name => newObject[name] = name);
+  return newObject;
+}
+
+class Architect {
 
   /**
    * @constructor
@@ -13,10 +23,13 @@ export default class Architect {
    * @param {String} [basePath] - the path relative to which all modules are located.
    */
   constructor(config, basePath) {
-    this.services = config && config.services || {};
-    this.startupTimeout = config && config.startup_timeout || 2000;
-    this.shutdownTimeout = config && config.shutdown_timeout || 2000;
+    config = config || {};
 
+    this.services = config.services || {};
+    this.startupTimeout = config.startup_timeout || DEFAULT_STARTUP_TIMEOUT;
+    this.shutdownTimeout = config.shutdown_timeout || DEFAULT_SHUTDOWN_TIMEOUT;
+
+    this.ignored = {};
     this.starting = {};
     this.resolved = {};
     this.teardown = {};
@@ -40,13 +53,83 @@ export default class Architect {
   }
 
   requireDefault(modulePath) {
-    let module = this.require(modulePath);
+    const module = this.require(modulePath);
 
-    if (module['default']) {
-      module = module['default'];
+    if (module.__esModule && module['default']) {
+      return module['default'];
     }
 
     return module;
+  }
+
+  /**
+   * Add service to startup config.
+   *
+   * @param {String} name - module name
+   * @param {String} spec - module specification
+   */
+  addService(name, spec) {
+    if (name in this.services) {
+      throw new Error('Cannot add module `' + name + '`. The service does not exist.');
+    }
+
+    if (this.started) {
+      throw new Error('Cannot add service `' + name + '` after the application fully started.');
+    }
+
+    this.services[name] = spec;
+    this.awaiting.push(name);
+  }
+
+  /**
+   * Add new dependency to service.
+   *
+   * @param {String} name - module name
+   * @param {String} dependency - dependency name
+   * @param {String} [alias] - alternative dependency name
+   */
+  addDependency(name, dependency, alias) {
+    if (!(name in this.services)) {
+      throw new Error('Cannot add dependency for `' + name + '`. The service does not exist.');
+    }
+
+    if (this.starting[name]) {
+      throw new Error('Cannot add dependency for `' + name + '`. The service has been started.');
+    }
+
+    if (!this.services[name].dependencies) {
+      throw new Error('Cannot add dependency for `' + name + '`. The service has no dependencies.');
+    }
+
+    if (alias && Array.isArray(this.services[name].dependencies)) {
+      this.services[name].dependencies =
+        makeDictionary(this.services[name].dependencies);
+    }
+
+    if (Array.isArray(this.services[name].dependencies)) {
+      this.services[name].dependencies.push(dependency);
+    } else {
+      this.services[name].dependencies[alias || dependency] = dependency;
+    }
+  }
+
+  /**
+   * Set option for service.
+   *
+   * @param {String} name - module name
+   * @param {String} key - option key or path (a.b.c.d)
+   * @param {*} value - option value
+   */
+  setOption(name, key, value) {
+    if (!(name in this.services)) {
+      throw new Error('Cannot set option for `' + name + '`. The service does not exist.');
+    }
+
+    if (!this.services[name].options) {
+      this.services[name].options = {};
+    }
+
+    oset(this.services[name].options, key, value);
   }
 
   /**
@@ -56,7 +139,7 @@ export default class Architect {
    */
   execute() {
     if (this.executed) {
-      throw new Error('Cannot execute the application twice');
+      throw new Error('Cannot execute the application twice.');
     }
 
     try {
@@ -64,6 +147,9 @@ export default class Architect {
     } catch (e) {
       return Promise.reject(e);
     }
+
+    this.fillIgnored();
+    this.cleanAwaiting();
 
     return new Promise((resolve, reject) => {
       this.promise = { resolve, reject };
@@ -78,29 +164,19 @@ export default class Architect {
    * @return {Promise}
    */
   shutdown() {
-    if (!this.started) {
-      throw new Error('The application cannot gracefully shutdown until fully started');
-    }
-
     const promise = [];
 
-    const mkPromise = function (teardown) {
-      return new Promise((resolve, reject) => {
-        teardown(error => error ? reject(error) : resolve());
-      });
-    };
+    if (!this.started) {
+      throw new Error('The application cannot gracefully shutdown until fully started.');
+    }
 
     for (const name in this.teardown) {
-      if (this.teardown[name].length === 1) {
-        promise.push(mkPromise(this.teardown[name]));
-      } else {
-        promise.push(this.teardown[name]());
-      }
+      promise.push(this.teardown[name]());
     }
 
     return new Promise((resolve, reject) => {
       const shutdownTimer = setTimeout(() => {
-        reject(new Error('Timeout of shutdown exceeded'));
+        reject(new Error('Timeout of shutdown is exceeded'));
       }, this.shutdownTimeout);
 
       Promise
@@ -126,26 +202,16 @@ export default class Architect {
    */
   nextRound() {
     let startedInThisRound = 0;
-    const ignored = [];
 
     for (let i = 0; i < this.awaiting.length; i++) {
       const name = this.awaiting[i];
       const service = this.services[name];
-
-      if (service.ignore) {
-        ignored.push(name);
-        continue;
-      }
 
       if (this.checkDependencies(name, service)) {
         this.startService(name, service);
         startedInThisRound++;
       }
     }
-
-    ignored.forEach(name => {
-      this.awaiting.splice(this.awaiting.indexOf(name), 1);
-    });
 
     if (this.awaiting.length === 0 && Object.keys(this.starting).length === 0) {
       this.started = true;
@@ -161,6 +227,23 @@ export default class Architect {
         ));
       }
     }
+  }
+
+  fillIgnored() {
+    for (let i = 0; i < this.awaiting.length; i++) {
+      const name = this.awaiting[i];
+      const service = this.services[name];
+
+      if (service.ignore) {
+        this.ignored[name] = 1;
+      }
+    }
+  }
+
+  cleanAwaiting() {
+    Object.keys(this.ignored).forEach(name => {
+      this.awaiting.splice(this.awaiting.indexOf(name), 1);
+    });
   }
 
   /**
@@ -184,6 +267,12 @@ export default class Architect {
     this.getDependencyNames(service).forEach(dependency => {
       if (!(dependency in this.resolved)) {
         resolved = false;
+      }
+
+      if (dependency in this.ignored) {
+        this.promise.reject(new Error(
+          'Dependency `' + dependency + '` on `' + name + '` is ignored'
+        ));
       }
 
       if (!(dependency in this.services)) {
@@ -210,11 +299,11 @@ export default class Architect {
   checkNameConstraints(dependencies) {
     dependencies.forEach(name => {
       if (name === 'require') {
-        throw new Error('Service name `require` is forbidden');
+        throw new Error('Service name `require` is forbidden.');
       }
 
       if (name === 'requireDefault') {
-        throw new Error('Service name `requireDefault` is forbidden');
+        throw new Error('Service name `requireDefault` is forbidden.');
       }
     });
   }
@@ -226,7 +315,7 @@ export default class Architect {
 
     return Array.isArray(service.dependencies)
         ? service.dependencies
-        : this.constructor.values(service.dependencies);
+        : values(service.dependencies);
   }
 
   obtainModule(name, service) {
@@ -244,10 +333,7 @@ export default class Architect {
   }
 
   obtainDepenedcies(name, service) {
-    const imports = {
-      require: this._require,
-      requireDefault: this._requireDefault
-    };
+    const imports = { __app__: this };
 
     if (!service.dependencies) {
       return imports;
@@ -288,47 +374,42 @@ export default class Architect {
     try {
       const startupTimer = setTimeout(() => {
         this.promise.reject(new Error(
-          'Timeout of startup module `' + name + '` exceeded'
+          'Timeout of startup module `' + name + '` is exceeded'
         ));
       }, this.startupTimeout);
 
-      if (serviceModule.length === 3) {
-          // callback version
-          serviceModule(
-              options,
-              imports,
-              this.register.bind(this, name, startupTimer)
-          );
-      } else {
-          // "returns promise" version
-          const module = serviceModule(options, imports);
-          this.register(name, startupTimer, module);
-      }
+      const module = serviceModule(options, imports);
+      this.register(name, startupTimer, module);
     } catch (error) {
       this.promise.reject(new Error(
-        `Error occurs during module "${name}" startup.\n` + error.stack
+        'Error occurs during module `' + name + '` startup.\n' + error.stack
       ));
     }
   }
 
   register(name, timer, module) {
-      // the module may be "promise" or "plain object"
+      // the module may be "promise" or just "plain object".
       Promise.resolve(module)
         .then(service => {
+          service = service || {};
+
           clearTimeout(timer);
           delete this.starting[name];
 
-          this.resolved[name] = service || {};
-          this.teardown[name] = (service && service.shutdown) ||
-            function () { return undefined; };
+          this.resolved[name] = service;
+          this.teardown[name] = service.shutdown || function () {}
 
           this.nextRound();
         })
         .catch(error => {
           this.promise.reject(new Error(
-            `Error occurs during module "${name}" startup.\n` + error.stack
+            'Error occurs during module `' + {name} + '` startup.\n' + error.stack
           ));
         })
   }
 
 }
+
+module.exports = Architect;
+module.exports.values = values;
+module.exports.makeDictionary = makeDictionary;
