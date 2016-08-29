@@ -429,7 +429,7 @@ class Architect {
         })
         .catch(error => {
           this.promise.reject(new Error(
-            'Error occurs during module `' + {name} + '` startup.\n' + error.stack
+            'Error occurs during module `' + name + '` startup.\n' + error.stack
           ));
         })
   }
