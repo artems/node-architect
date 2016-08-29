@@ -1,5 +1,6 @@
 const path = require('path');
 const oset = require('object-set');
+const omerge = require('object-merge');
 
 const DEFAULT_STARTUP_TIMEOUT = 5000;
 const DEFAULT_SHUTDOWN_TIMEOUT = 5000;
@@ -24,6 +25,8 @@ class Architect {
    */
   constructor(config, basePath) {
     config = config || {};
+
+    this.config = config;
 
     this.services = config.services || {};
     this.startupTimeout = config.startup_timeout || DEFAULT_STARTUP_TIMEOUT;
@@ -65,12 +68,12 @@ class Architect {
   /**
    * Add service to startup config.
    *
-   * @param {String} name - module name
-   * @param {String} spec - module specification
+   * @param {String} name - service name
+   * @param {String} spec - service specification
    */
   addService(name, spec) {
     if (name in this.services) {
-      throw new Error('Cannot add module `' + name + '`. The service does not exist.');
+      throw new Error('Cannot add service `' + name + '`. The service already exists.');
     }
 
     if (this.started) {
@@ -84,7 +87,7 @@ class Architect {
   /**
    * Add new dependency to service.
    *
-   * @param {String} name - module name
+   * @param {String} name - service name
    * @param {String} dependency - dependency name
    * @param {String} [alias] - alternative dependency name
    */
@@ -116,7 +119,7 @@ class Architect {
   /**
    * Set option for service.
    *
-   * @param {String} name - module name
+   * @param {String} name - service name
    * @param {String} key - option key or path (a.b.c.d)
    * @param {*} value - option value
    */
@@ -130,6 +133,29 @@ class Architect {
     }
 
     oset(this.services[name].options, key, value);
+  }
+
+  /**
+   * Adds options for service.
+   *
+   * @param {String} name - service name
+   * @param {Object} options
+   */
+  addOptions(name, options) {
+    if (!(name in this.services)) {
+      throw new Error('Cannot add options for `' + name + '`. The service does not exist.');
+    }
+
+    this.services[name].options = omerge(this.services[name].options, options);
+  }
+
+  /**
+   * Returns config.
+   *
+   * @return {Object}
+   */
+  getConfig() {
+    return this.config;
   }
 
   /**

@@ -905,4 +905,69 @@ describe('architect', function () {
 
   });
 
+  describe('#addOptions', function () {
+
+    it('should adds options for service', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              imports.__app__.addOptions('serviceB', { a: 'b', c: 'd' });
+              return 'moduleA';
+            }
+          },
+          serviceB: {
+            module: function (options, imports) {
+              assert.equal(options.a, 'b');
+              assert.equal(options.c, 'd');
+              assert.equal(options.e, 'f');
+              return 'moduleB';
+            },
+            options: { e: 'f' },
+            dependencies: ['serviceA']
+          }
+        }
+      };
+
+      app = new Architect(config);
+
+      app
+        .execute()
+        .then(() => {})
+        .then(done, done);
+
+    });
+
+    it.only('should add options for service even when service has no options', function (done) {
+
+      config = {
+        services: {
+          serviceA: {
+            module: function (options, imports) {
+              imports.__app__.addOptions('serviceB', { a: 'b' });
+              return 'moduleA';
+            }
+          },
+          serviceB: {
+            module: function (options, imports) {
+              assert.equal(options.a, 'b');
+              return 'moduleB';
+            },
+            dependencies: ['serviceA']
+          }
+        }
+      };
+
+      app = new Architect(config);
+
+      app
+        .execute()
+        .then(() => {})
+        .then(done, done);
+
+    });
+
+  });
+
 });
