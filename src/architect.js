@@ -1,6 +1,6 @@
 const path = require('path');
 const oset = require('object-set');
-const omerge = require('object-merge');
+const omerge = require('deepmerge');
 
 const DEFAULT_STARTUP_TIMEOUT = 5000;
 const DEFAULT_SHUTDOWN_TIMEOUT = 5000;
